@@ -70,4 +70,201 @@ class PagesController extends AppController
             throw new NotFoundException();
         }
     }
+
+    public function about() {
+    }
+
+    public function regist()
+    {
+        // Load the SecretNotes model
+        $secretNote = $this->getTableLocator()->get('SecretNote')->newEmptyEntity();
+
+        if ($this->request->is('post')) {
+            // Get form data
+            $data = $this->request->getData();
+
+            // Check if passwords match
+            if ($data['password'] !== $data['confirm_password']) {
+                $this->Flash->error(__('Passwords do not match.'));
+            } else {
+                // Patch the form data into the entity
+                $secretNote = $this->getTableLocator()->get('SecretNote')->patchEntity($secretNote, $data);
+
+                // Set the default values for new users
+                $secretNote->update_token = 0;
+                $secretNote->note = "Write your first note here!";
+
+                // Check for validation errors
+                if ($secretNote->getErrors()) {
+                    $this->Flash->error(__('Please choose another username.'));
+                } else {
+                    // Save the entity
+                    if ($this->getTableLocator()->get('SecretNote')->save($secretNote)) {
+                        $this->Flash->success(__('Your note has been saved.'));
+                        return $this->redirect(['action' => 'login']); // Redirect after success
+                    } else {
+                        $this->Flash->error(__('There was an error saving the note.'));
+                    }
+                }
+            }
+        }
+
+        // Use the correct variable name in compact
+        $this->set(compact('secretNote'));
+    }
+
+
+    public function login()
+    {   
+        if ($this->request->is('post')) {
+            $username = $this->request->getData('username');
+            $password = $this->request->getData('password');
+            
+            // Load the SecretNote table if it's not already loaded
+            $secretNoteTable = $this->getTableLocator()->get('SecretNote');
+            
+            // Find the record by username (you can add more conditions if necessary)
+            $user = $secretNoteTable->find()
+                ->where(['username' => $username])
+                ->first(); // Only take the first matching record
+            
+            // Check if a user with that username exists
+            if ($user) {
+                // Verify the password (Use password_verify for security)
+                if (password_verify($password, $user->password)) {
+                    // Password matches, log the user in
+                    $this->Flash->success('Login successful');
+
+                    // Store the user in the session
+                    $this->Authentication->setIdentity($user);
+
+                    // Redirect to the homepage
+                    return $this->redirect('/home');
+                } else {
+                    // Password does not match
+                    $this->Flash->error('Invalid password');
+                }
+            } else {
+                // No user found
+                $this->Flash->error('Invalid username');
+            }
+        }
+    }
+
+    public function home()
+    {
+        // Retrieve the logged-in user
+        $user = $this->Authentication->getIdentity();
+
+        // Check if the user is authenticated
+        if ($user) {
+            // Get the SecretNote table using the TableLocator
+            $secretNoteTable = $this->getTableLocator()->get('SecretNote');
+            
+            // Query the SecretNote table by the logged-in username
+            $secretNote = $secretNoteTable->find()
+                ->where(['username' => $user->username])
+                ->first(); // Get the first result (the note for that user)
+
+            // Check if we found a note
+            if (!$secretNote) {
+                $this->Flash->error('No note found.');
+            }
+        } else {
+            // User not authenticated, redirect to login page
+            return $this->redirect(['controller' => 'Pages', 'action' => 'login']);
+        }
+
+        // Always pass the correct variable to the view
+        $this->set(compact('secretNote'));
+    }
+
+    public function saveNote()
+    {
+        // Check if the request is POST
+        if ($this->request->is('post')) {
+            // Retrieve the logged-in user
+            $user = $this->Authentication->getIdentity();
+
+            if ($user) {
+                // Load the SecretNote model
+                $secretNoteTable = $this->getTableLocator()->get('SecretNote');
+
+                // Find the user's existing note or create a new entity
+                $secretNote = $secretNoteTable->find()
+                    ->where(['username' => $user->username])
+                    ->first();
+
+                if (!$secretNote) {
+                    $secretNote = $secretNoteTable->newEmptyEntity();
+                    $secretNote->update_token = 0; // Initialize update_token for a new note
+                } else {
+                    // Increment the update_token for existing notes
+                    $secretNote->update_token = $secretNote->update_token + 1;
+                }
+
+                // Patch data into the entity
+                $secretNote = $secretNoteTable->patchEntity($secretNote, $this->request->getData());
+
+                // Save the note
+                if ($secretNoteTable->save($secretNote)) {
+                    $this->Flash->success(__('Your note has been saved.'));
+                } else {
+                    $this->Flash->error(__('Unable to save your note. Please try again.'));
+                }
+            } else {
+                $this->Flash->error(__('You must be logged in to save notes.'));
+            }
+        }
+
+        // Redirect back to the home page or a relevant page
+        return $this->redirect(['action' => 'home']);
+    }
+
+    public function logoutUser() {
+        $result = $this->Authentication->getResult();
+        // regardless of POST or GET, redirect if user is logged in
+        if ($result && $result->isValid()) {
+            $this->Authentication->logout();
+
+            return $this->redirect(['controller' => 'Pages', 'action' => 'login']);
+        }
+    }
+
+    public function deleteUser()
+    {
+        // Check if the user is authenticated
+        $user = $this->Authentication->getIdentity();
+
+        if ($user) {
+            // Load the SecretNote model
+            $secretNoteTable = $this->getTableLocator()->get('SecretNote');
+
+            // Find the user's note by username
+            $secretNote = $secretNoteTable->find()
+                ->where(['username' => $user->username])
+                ->first();
+
+            if ($secretNote) {
+                // Delete the user's note
+                if ($secretNoteTable->delete($secretNote)) {
+                    $this->Flash->success(__('Your account and notes have been successfully deleted.'));
+
+                    // Log out the user after deleting the account
+                    $this->Authentication->logout();
+
+                    // Redirect to the home page or login page
+                    return $this->redirect(['controller' => 'Pages', 'action' => 'login']);
+                } else {
+                    $this->Flash->error(__('Unable to delete your account. Please try again.'));
+                }
+            } else {
+                $this->Flash->error(__('No account found to delete.'));
+            }
+        } else {
+            $this->Flash->error(__('You must be logged in to delete your account.'));
+            return $this->redirect(['controller' => 'Pages', 'action' => 'login']);
+        }
+    }
+
 }

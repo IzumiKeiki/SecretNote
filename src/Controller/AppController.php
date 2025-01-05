@@ -17,6 +17,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use Cake\Controller\Controller;
+use Cake\Event\EventInterface; 
 
 /**
  * Application Controller
@@ -40,13 +41,25 @@ class AppController extends Controller
     public function initialize(): void
     {
         parent::initialize();
-
+        
+         // Load the Flash component to display messages
         $this->loadComponent('Flash');
 
+         // Load the Authentication component
+        $this->loadComponent('Authentication.Authentication');
+        
         /*
          * Enable the following component for recommended CakePHP form protection settings.
          * see https://book.cakephp.org/5/en/controllers/components/form-protection.html
          */
-        //$this->loadComponent('FormProtection');
+        // $this->loadComponent('FormProtection');
+    }
+
+    public function beforeFilter(\Cake\Event\EventInterface $event)
+    {
+        parent::beforeFilter($event);
+        // Configure the login action to not require authentication, preventing
+        // the infinite redirect loop issue
+        $this->Authentication->addUnauthenticatedActions(['login', 'regist', 'about']);
     }
 }

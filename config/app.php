@@ -411,6 +411,8 @@ return [
      */
     'Session' => [
         'defaults' => 'php',
+        'timeout' => 3600,    // Session timeout in seconds (1 hour (3600 seconds))
+        'cookie' => 'CAKEPHP', // Name of the session cookie
     ],
     'DebugKit' => [
         'forceEnable' => filter_var(env('DEBUG_KIT_FORCE_ENABLE', false), FILTER_VALIDATE_BOOLEAN),
